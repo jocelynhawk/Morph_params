@@ -266,7 +266,7 @@ def gs_bin(img):
 data_type = 'gt'
 labels_folder = ".\Labels_gs"
 img_folder="./mdn"
-mdn_folder='./mdn'
+mdn_folder='./mdn2'
 tcl_folder='./tcl'
 file_ends = [['.jpg','.jpg'],['_mdn.jpg','_tcl.jpg']]
 

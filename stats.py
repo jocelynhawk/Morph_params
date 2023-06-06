@@ -4,7 +4,7 @@ import pandas as pd
 import pingouin as pg
 
 
-def get_ordered_vals(CTS_ids,healthy_ids,df):
+def get_ordered_vals(CTS_ids,healthy_ids,df,par):
     CTS_vals,healthy_vals=[],[]
     for CTS_id in CTS_ids:
         CTS_id = 'SUB0C00'+CTS_id[-2:]
@@ -12,9 +12,6 @@ def get_ordered_vals(CTS_ids,healthy_ids,df):
     for healthy_id in healthy_ids:
         healthy_id = 'SUB0000'+healthy_id[-2:]
         healthy_vals.append(df.at[healthy_id,par])
-
-    
-
 
     return CTS_vals,healthy_vals
 
@@ -56,9 +53,13 @@ for id in healthy_ids:
     CTS_ids.append(match)
 
 #calc mean, std, wilcoxon test
-wilc_s,wilc_p,wilc_z,CTS_means,healthy_means,CTS_stds,healthy_stds,wilc_pred_p,wilc_pred_s,ICCs,mean_errs,std_errs=[],[],[],[],[],[],[],[],[],[],[],[]
+wilc_s,wilc_p,wilc_z,CTS_means,healthy_means,CTS_stds,healthy_stds,wilc_pred_p,wilc_pred_s,ICCs,mean_errs,std_errs,wilc_s_gt,wilc_p_gt=[],[],[],[],[],[],[],[],[],[],[],[],[],[]
 error_df=pd.DataFrame(columns=parameters)
 for par in parameters:
+
+    CTS_vals,healthy_vals = get_ordered_vals(CTS_ids,healthy_ids,pred,par)
+    CTS_vals_gt,healthy_vals_gt = get_ordered_vals(CTS_ids,healthy_ids,pred,par)
+
     error_df[par]=abs(pred[par]-gt[par])
     mean_err = mean(error_df[par])
     std_err = stdev(error_df[par])
@@ -70,11 +71,16 @@ for par in parameters:
     wilc_pred_s.append(wilc_pred.statistic)
     wilc_pred_p.append(wilc_pred.pvalue)
 
-    #Compare CTS vs Healthy
-    CTS_vals,healthy_vals = get_ordered_vals(CTS_ids,healthy_ids,pred)
+    
+
+    #Wilcoxon's Test for comparing CTS vs healthy
     wilc = (wilcoxon(CTS_vals,healthy_vals))
     wilc_s.append(wilc.statistic)
     wilc_p.append(wilc.pvalue)
+
+    wilc_gt = (wilcoxon(CTS_vals_gt,healthy_vals_gt))
+    wilc_s_gt.append(wilc_gt.statistic)
+    wilc_p_gt.append(wilc_gt.pvalue)
 
     healthy_avg,healthy_std,CTS_avg,CTS_std = calc_avg_std(CTS_vals,healthy_vals)
     CTS_means.append(CTS_avg)
@@ -92,8 +98,9 @@ for par in parameters:
 
     #ICC
 
-d = {'Parameter':parameters,'statistic':wilc_s,'p':wilc_p,'CTS Mean':CTS_means,'CTS STD':CTS_stds,'Healthy Mean':healthy_means,'Healthy STD':healthy_stds,'Pred_p':wilc_pred_p,'mean_err':mean_errs,'std_err':std_errs}
+d = {'Parameter':parameters,'statistic':wilc_s,'p':wilc_p,'CTS Mean':CTS_means,'CTS STD':CTS_stds,'Healthy Mean':healthy_means,'Healthy STD':healthy_stds,'Pred_p':wilc_pred_p,'mean_err':mean_errs,'std_err':std_errs,'statistic_gt':wilc_s_gt,'p_gt':wilc_p_gt}
 wilc_df = pd.DataFrame(d,columns=['Parameter','statistic','p'])
+wilc_gt_df = pd.DataFrame(d,columns=['Parameter','statistic_gt','p_gt'])
 means_df=pd.DataFrame(d,columns=['Parameter','Healthy Mean','Healthy STD','CTS Mean','CTS STD','mean_err','std_err'])
 ICC_df=pd.DataFrame(ICCs)
 print(ICC_df)
@@ -104,7 +111,8 @@ ICC_df=ICC_df.set_index(['parameter'])
 
 with pd.ExcelWriter('morph_params.xlsx',mode='a',if_sheet_exists='replace') as writer:
     means_df.to_excel(writer,sheet_name='mean_std')
-    wilc_df.to_excel(writer,sheet_name='wilc_test')
+    wilc_df.to_excel(writer,sheet_name='wilc_test_pred')
+    wilc_gt_df.to_excel(writer,sheet_name='wilc_test_gt')
     error_df.to_excel(writer,sheet_name='error')
     ICC_df.to_excel(writer,sheet_name='ICC')
 print(wilc_df)
