@@ -12,7 +12,9 @@ import parameter_calculation as pc
 import mlca_stats as ms
 
 filename='stats.xlsx'
-pc.main(filename,'pred')
-pc.main(filename,'gt')
+#pc.main(filename,'pred')
+#pc.main(filename,'gt')
 ms.main(filename)
+
+
 

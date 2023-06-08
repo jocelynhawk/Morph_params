@@ -25,9 +25,38 @@ def calc_ICC(gt_vals,pred_vals,sub_id):
     
     return results
 
+def calc_wilc(df,CTS_ids,healthy_ids):
+    params = list(df.columns.values[1:])
+    df = df.reset_index()
+    df = df.set_index(['sub_id'])
+    wilc_perf_s,wilc_perf_p,CTS_mean,healthy_mean,CTS_std,healthy_std=[],[],[],[],[],[]
+    
+    for par in params:
+        CTS,healthy = get_ordered_vals(CTS_ids,healthy_ids,df,par)
+
+        wilc_perf = wilcoxon(healthy,CTS)
+        wilc_perf_s.append(wilc_perf.statistic)
+        wilc_perf_p.append(wilc_perf.pvalue)
+
+        CTS_mean.append(mean(CTS))
+        CTS_std.append(stdev(CTS))
+        healthy_mean.append(mean(healthy))
+        healthy_std.append(stdev(healthy))
+
+    print(healthy_mean)
+    print(CTS_mean)
+    print(CTS_std)
+    print(wilc_perf_p)
+    wilc_df = pd.DataFrame({'statistic':wilc_perf_s,'p':wilc_perf_p,'CTS_mean':CTS_mean,'CTS_std':CTS_std,'healthy_mean':healthy_mean,'healthy_std':healthy_std},columns=['statistic','p','CTS_mean','CTS_std','healthy_mean','healthy_std'])
+    wilc_df['parameter']=params
+    wilc_df = wilc_df.set_index(['parameter'])
+    print(wilc_df)
+
+    return wilc_df
+
 
 def main(filename):
-    wilc_s,wilc_p,CTS_means,healthy_means,CTS_stds,healthy_stds,wilc_pred_p,wilc_pred_s,ICCs,mean_errs,std_errs,wilc_s_gt,wilc_p_gt=[],[],[],[],[],[],[],[],[],[],[],[],[]
+    CTS_means,healthy_means,CTS_stds,healthy_stds,wilc_pred_p,wilc_pred_s,ICCs,mean_errs,std_errs=[],[],[],[],[],[],[],[],[]
 
     pred = pd.read_excel(filename,sheet_name='pred')
     sub_ids=list(pred['sub_id'])
@@ -39,23 +68,30 @@ def main(filename):
     sub_match = pd.read_csv(r'Subject_Match.csv')
     healthy_ids = list(sub_match['Healthy_id'])
     sub_match = sub_match.set_index(['Healthy_id'])
-
-
-
-    parameters = list(pred.columns.values[1:])
     CTS_ids=[]
     for id in healthy_ids:
         match = sub_match.at[id,'CTS_id']
         CTS_ids.append(match)
 
+    perf_eval_mdn = pd.read_excel('Eval_Params.xlsx',sheet_name='mdn')
+    perf_eval_tcl = pd.read_excel('Eval_Params.xlsx',sheet_name='tcl')
+
+    wilc_perf_mdn = calc_wilc(perf_eval_mdn,CTS_ids,healthy_ids)   
+    wilc_perf_tcl = calc_wilc(perf_eval_tcl,CTS_ids,healthy_ids)    
+    #Wilcoxon's Test for comparing CTS vs healthy
+    wilc_df_pred = calc_wilc(pred,CTS_ids,healthy_ids)
+    wilc_df_gt = calc_wilc(gt,CTS_ids,healthy_ids)
+
+
+    parameters = list(pred.columns.values[1:])
     error_df=pd.DataFrame(columns=parameters)
+
 
 
     for par in parameters:
 
         #Get parameter values in order according to age/gender match
         CTS_vals,healthy_vals = get_ordered_vals(CTS_ids,healthy_ids,pred,par)
-        CTS_vals_gt,healthy_vals_gt = get_ordered_vals(CTS_ids,healthy_ids,pred,par)
 
         #calc mean absolute error of prediction calculations
         error_df[par]=abs(pred[par]-gt[par])
@@ -68,17 +104,6 @@ def main(filename):
         wilc_pred = wilcoxon(pred[par],gt[par])
         wilc_pred_s.append(wilc_pred.statistic)
         wilc_pred_p.append(wilc_pred.pvalue)
-
-        
-
-        #Wilcoxon's Test for comparing CTS vs healthy
-        wilc = (wilcoxon(CTS_vals,healthy_vals))
-        wilc_s.append(wilc.statistic)
-        wilc_p.append(wilc.pvalue)
-
-        wilc_gt = (wilcoxon(CTS_vals_gt,healthy_vals_gt))
-        wilc_s_gt.append(wilc_gt.statistic)
-        wilc_p_gt.append(wilc_gt.pvalue)
 
         #calc mean and std of morph parameters
         CTS_avg,healthy_avg = mean(CTS_vals),mean(healthy_vals)
@@ -93,18 +118,15 @@ def main(filename):
         ICC=ICC.set_index(['Type'])
         ICC=ICC.loc['ICC3']
         ICCs.append(ICC)
-        
 
-        
 
-        #ICC
+    d = {'Parameter':parameters,'CTS Mean':CTS_means,'CTS STD':CTS_stds,'Healthy Mean':healthy_means,'Healthy STD':healthy_stds,'mean_err':mean_errs,'std_err':std_errs}
+    
 
-    d = {'Parameter':parameters,'statistic':wilc_s,'p':wilc_p,'CTS Mean':CTS_means,'CTS STD':CTS_stds,'Healthy Mean':healthy_means,'Healthy STD':healthy_stds,'Pred_p':wilc_pred_p,'mean_err':mean_errs,'std_err':std_errs,'statistic_gt':wilc_s_gt,'p_gt':wilc_p_gt}
-    wilc_df = pd.DataFrame(d,columns=['Parameter','statistic','p'])
-    wilc_gt_df = pd.DataFrame(d,columns=['Parameter','statistic_gt','p_gt'])
+
     means_df=pd.DataFrame(d,columns=['Parameter','Healthy Mean','Healthy STD','CTS Mean','CTS STD','mean_err','std_err'])
+
     ICC_df=pd.DataFrame(ICCs)
-    print(ICC_df)
     ICC_df['parameter']=parameters
     ICC_df=ICC_df.reset_index()
     ICC_df=ICC_df.set_index(['parameter'])
@@ -112,10 +134,11 @@ def main(filename):
 
     with pd.ExcelWriter(filename,mode='a',if_sheet_exists='replace') as writer:
         means_df.to_excel(writer,sheet_name='mean_std')
-        wilc_df.to_excel(writer,sheet_name='wilc_test_pred')
-        wilc_gt_df.to_excel(writer,sheet_name='wilc_test_gt')
+        wilc_df_pred.to_excel(writer,sheet_name='wilc_test_pred')
+        wilc_df_gt.to_excel(writer,sheet_name='wilc_test_gt')
         error_df.to_excel(writer,sheet_name='error')
         ICC_df.to_excel(writer,sheet_name='ICC')
-    print(wilc_df)
+        wilc_perf_mdn.to_excel(writer,sheet_name='wilc_eval_mdn')
+        wilc_perf_tcl.to_excel(writer,sheet_name='wilc_eval_tcl')
 
 
