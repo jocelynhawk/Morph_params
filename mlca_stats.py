@@ -43,10 +43,6 @@ def calc_wilc(df,CTS_ids,healthy_ids):
         healthy_mean.append(mean(healthy))
         healthy_std.append(stdev(healthy))
 
-    print(healthy_mean)
-    print(CTS_mean)
-    print(CTS_std)
-    print(wilc_perf_p)
     wilc_df = pd.DataFrame({'statistic':wilc_perf_s,'p':wilc_perf_p,'CTS_mean':CTS_mean,'CTS_std':CTS_std,'healthy_mean':healthy_mean,'healthy_std':healthy_std},columns=['statistic','p','CTS_mean','CTS_std','healthy_mean','healthy_std'])
     wilc_df['parameter']=params
     wilc_df = wilc_df.set_index(['parameter'])
@@ -65,7 +61,8 @@ def main(filename):
     gt = pd.read_excel(filename,sheet_name='gt')
     gt = gt.set_index('sub_id')
 
-    sub_match = pd.read_csv(r'Subject_Match.csv')
+    #Load age/gender-match subject names
+    sub_match = pd.read_excel(r'Subject_Match.xlsx')
     healthy_ids = list(sub_match['Healthy_id'])
     sub_match = sub_match.set_index(['Healthy_id'])
     CTS_ids=[]
@@ -76,9 +73,11 @@ def main(filename):
     perf_eval_mdn = pd.read_excel('Eval_Params.xlsx',sheet_name='mdn')
     perf_eval_tcl = pd.read_excel('Eval_Params.xlsx',sheet_name='tcl')
 
+    #Wilcoxon test for comparing CTS vs healthy performance params
     wilc_perf_mdn = calc_wilc(perf_eval_mdn,CTS_ids,healthy_ids)   
-    wilc_perf_tcl = calc_wilc(perf_eval_tcl,CTS_ids,healthy_ids)    
-    #Wilcoxon's Test for comparing CTS vs healthy
+    wilc_perf_tcl = calc_wilc(perf_eval_tcl,CTS_ids,healthy_ids)
+
+    #Wilcoxon Test for comparing CTS vs healthy morph params
     wilc_df_pred = calc_wilc(pred,CTS_ids,healthy_ids)
     wilc_df_gt = calc_wilc(gt,CTS_ids,healthy_ids)
 

@@ -219,6 +219,35 @@ def calc_CAA(img, left, right):
 
     return CAA
 
+def calc_FR(img):
+    mdn_xy = measure.find_contours(img)[0]
+    max_dist_l = 0
+    for pt0 in mdn_xy:
+        for pt1 in mdn_xy:
+            dist = np.linalg.norm(pt0-pt1)
+            if dist > max_dist_l:
+                max_dist_l = dist
+                long_axis_p0 = pt0
+                long_axis_p1 = pt1
+    max_dist_s=0
+    for pt0 in mdn_xy:
+        for pt1 in mdn_xy:
+            dist = np.linalg.norm(pt0-pt1)
+            if int(abs(np.cross(pt0-pt1,long_axis_p0-long_axis_p1))) == int(dist*max_dist_l):
+                max_dist_s = max(max_dist_s,dist)
+
+    
+    FR = max_dist_s/max_dist_l
+    print('FR: ',FR)
+
+    return FR
+
+
+    
+
+
+
+
 def calc_mdn_tcl_dist(img,d):
    row, col = img.shape
 
@@ -260,20 +289,19 @@ def gs_bin(img):
     return img
 
 
-
 def main(filename,data_type):
     # Set the path to the folder containing the binary labels
     labels_folder = ".\Labels_gs"
-    img_folder="./mdn"
+    img_folder="./mdn2"
     mdn_folder='./mdn2'
     tcl_folder='./tcl'
-    file_ends = [['.jpg','.jpg'],['_mdn.jpg','_tcl.jpg']]
+
 
     # Get a list of all files in the folder
     files = os.listdir(img_folder)
 
 
-    CSAs,Ps,Cs,CAWs,CAHs,CAAs,ts,distances,sub_ids=[],[],[],[],[],[],[],[],[]
+    CSAs,Ps,Cs,CAWs,CAHs,CAAs,ts,distances,sub_ids,FRs=[],[],[],[],[],[],[],[],[],[]
     for file in files:
 
         sub_id = file[0:9]
@@ -293,7 +321,6 @@ def main(filename,data_type):
         if data_type == 'gt':
             mdn_label = io.imread(os.path.join(labels_folder, sub_id + '_mdn.jpg'),as_gray=True)
             tcl_label = io.imread(os.path.join(labels_folder, sub_id + '_tcl.jpg'),as_gray=True)
-
 
         mdn_label=gs_bin(mdn_label)
         tcl_label=gs_bin(tcl_label)
@@ -318,6 +345,9 @@ def main(filename,data_type):
         dist,mdn_xy = calc_mdn_tcl_dist(mdn_label,d_boundary)
         dist = dist/pix_mm
         distances.append(dist)
+
+        #FR = calc_FR(mdn_label)
+        #FRs.append(FR)
 
         CSA = np.shape(mdn_xy)[0]
         CSA=CSA/pix_mm**2
@@ -348,6 +378,7 @@ def main(filename,data_type):
     d={'sub_id':sub_ids,'mdn_CSA':CSAs,'mdn_P':Ps,'mdn_C':Cs,'CAW':CAWs,'CAH':CAHs,'CAA':CAAs,'t':ts,'dist':distances}
     results_df = pd.DataFrame(d,columns=['sub_id','mdn_CSA','mdn_P','mdn_C','CAW','CAH','CAA','t','dist'])
     print(results_df)
+
 
     try:
         with pd.ExcelWriter(filename,mode='a',if_sheet_exists='replace') as writer:
